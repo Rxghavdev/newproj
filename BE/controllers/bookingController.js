@@ -1,11 +1,13 @@
 const User = require("../models/userModel");
 const Booking = require("../models/bookingModel");
 const calculatePrice = require("../helpers/priceCalculator");
+const { findBestDriver } = require('../helpers/matchingAlgorithm');
 
 const createBooking = async (req, res) => {
   try {
-    const { pickupLocation, dropoffLocation, vehicleType, distance } = req.body;
-    const currentBookings = await Booking.countDocuments({ status: "pending" });
+    const { pickupLocation, dropoffLocation, vehicleType, distance, pickupLat, pickupLng } = req.body;
+
+    const currentBookings = await Booking.countDocuments({ status: 'pending' });
     const price = calculatePrice(vehicleType, distance, currentBookings);
 
     const booking = new Booking({
@@ -14,48 +16,60 @@ const createBooking = async (req, res) => {
       dropoffLocation,
       vehicleType,
       price,
-      status: "pending",
+      status: 'pending', // Default status is pending
     });
 
     await booking.save();
-    res.status(201).json({ message: "Booking created successfully", booking });
+
+    // Optional: Notify nearby drivers (this part can be implemented with Socket.IO)
+    const nearbyDriver = await findBestDriver(vehicleType, pickupLat, pickupLng);
+    if (nearbyDriver) {
+      console.log(`Notifying driver ${nearbyDriver._id} of new booking`);
+      io.emit(`booking:request:${nearbyDriver._id}`, { bookingId: booking._id });
+    }
+
+    res.status(201).json({ message: 'Booking created successfully', booking });
   } catch (error) {
-    console.error("Error creating booking:", error);
-    res
-      .status(500)
-      .json({
-        message: "Error creating booking",
-        error: error.message || error,
-      });
+    console.error('Error creating booking:', error);
+    res.status(500).json({ message: 'Error creating booking', error: error.message || error });
   }
 };
 
+const getUserBookings = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const bookings = await Booking.find({ user: userId })
+      .sort({ createdAt: -1 }); 
+
+    res.status(200).json({ message: 'User bookings retrieved successfully', bookings });
+  } catch (error) {
+    console.error('Error fetching user bookings:', error);
+    res.status(500).json({
+      message: 'Error fetching user bookings',
+      error: error.message || error,
+    });
+  }
+};
 const acceptBooking = async (req, res) => {
   try {
     const { bookingId } = req.body;
-    const booking = await Booking.findById(bookingId);
+    const booking = await Booking.findOneAndUpdate(
+      { _id: bookingId, status: 'pending' },
+      { driver: req.user._id, status: 'accepted' }, 
+      { new: true } 
+    );
 
     if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
+      return res.status(400).json({ message: 'Booking is no longer available' });
     }
 
-    if (booking.driver) {
-      return res.status(400).json({ message: "Booking already accepted" });
-    }
+    // Set driver availability to false after accepting the booking
+    await User.findByIdAndUpdate(req.user._id, { availability: false });
 
-    booking.driver = req.user._id;
-    booking.status = "accepted";
-
-    await booking.save();
-    res.status(200).json({ message: "Booking accepted", booking });
+    res.status(200).json({ message: 'Booking accepted successfully', booking });
   } catch (error) {
-    console.error("Error accepting booking:", error);
-    res
-      .status(500)
-      .json({
-        message: "Error accepting booking",
-        error: error.message || error,
-      });
+    console.error('Error accepting booking:', error);
+    res.status(500).json({ message: 'Error accepting booking', error: error.message || error });
   }
 };
 
@@ -176,4 +190,5 @@ module.exports = {
   getPriceEstimate,
   updateJobStatus,
   rateDriver,
+  getUserBookings,
 };
