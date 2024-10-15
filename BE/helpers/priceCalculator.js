@@ -1,6 +1,6 @@
 const getSurgeMultiplier = (currentBookings) => {
-  if (currentBookings > 5) return 1.5;
-  if (currentBookings > 20) return 1.2;             //calculating for current demand
+  if (currentBookings > 50) return 1.5;
+  if (currentBookings > 20) return 1.3;             //calculating for current demand
   return 1; // No surge     
 };
 const calculatePrice = (vehicleType, distance, currentBookings) => {
@@ -19,7 +19,6 @@ const calculatePrice = (vehicleType, distance, currentBookings) => {
     default:
       throw new Error("Invalid vehicle type");
   }
-  //calculating surge multiplier
   const surgeMultiplier = getSurgeMultiplier(currentBookings);
   return (basePrice + pricePerKm * distance) * surgeMultiplier;
 };

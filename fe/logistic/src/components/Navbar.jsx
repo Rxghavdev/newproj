@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import{isLoggedIn} from '../context/AuthContext'
 
 export default function Navbar() {
   return (
@@ -16,6 +17,8 @@ export default function Navbar() {
           <Link to="/register" className="text-white hover:underline">
             Register
           </Link>
+
+          
         </div>
       </div>
     </nav>

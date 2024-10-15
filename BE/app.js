@@ -3,9 +3,9 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const http = require("http");
 const socketIO = require("socket.io");
-const Redis = require("redis");
 const cron = require("node-cron");
 const connectDB = require("./config/db");
+const redisClient = require("./helpers/redisClient");
 const { findBestDriver } = require("./helpers/matchingAlgorithm");
 
 dotenv.config();
@@ -14,16 +14,27 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-// Enable CORS
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000", // Allow frontend origin
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true, // Allow cookies and credentials
+    credentials: true,
   })
 );
 
-app.use(express.json()); // Ensure body parsing happens after CORS
+app.use(express.json());
+
+const userRoutes = require("./routes/userRoutes");
+const bookingRoutes = require("./routes/bookingRoutes");
+const adminRoutes = require("./routes/adminRoutes");
+
+app.use("/api/users", userRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use("/api/admin", adminRoutes);
+
+app.get("/", (req, res) => {
+  res.send("Logistics Platform API");
+});
 
 const io = socketIO(server, {
   cors: {
@@ -33,43 +44,44 @@ const io = socketIO(server, {
   },
 });
 
-// Redis client configuration
-const redisClient = Redis.createClient({
-  host: process.env.REDIS_HOST || "localhost",
-  port: process.env.REDIS_PORT || 6379,
-});
-
-redisClient.on("connect", () => console.log("Connected to Redis"));
-redisClient.on("error", (err) => console.error("Redis error:", err));
-
-// Import routes
-const userRoutes = require("./routes/userRoutes");
-const bookingRoutes = require("./routes/bookingRoutes");
-const adminRoutes = require("./routes/adminRoutes");
-
-// Apply routes
-app.use("/api/users", userRoutes);
-app.use("/api/bookings", bookingRoutes);
-app.use("/api/admin", adminRoutes);
-
-app.get("/", (req, res) => {
-  res.send("Logistics Platform API");
-});
-
 io.on("connection", (socket) => {
   console.log(`New client connected: ${socket.id}`);
-  
-  socket.on("locationUpdate", (data) => {
-    const { driverId, lat, lng } = data;
-    console.log(`Location update from Driver ${driverId}: (${lat}, ${lng})`);
 
-    redisClient.setex(
-      `driver:${driverId}:location`,
-      3600,
-      JSON.stringify({ lat, lng })
-    );
+  socket.on("joinBookingRoom", (bookingId) => {
+    socket.join(`booking:${bookingId}`);
+    console.log(`Socket ${socket.id} joined room: booking:${bookingId}`);
+  });
 
-    io.emit(`tracking:${driverId}`, { lat, lng });
+  socket.on("locationUpdate", async (data) => {
+    const { bookingId, lat, lng } = data;
+    console.log(`Location update for Booking ${bookingId}: (${lat}, ${lng})`);
+
+    try {
+      await redisClient.setEx(
+        `driver:${bookingId}:location`,
+        3600,
+        JSON.stringify({ lat, lng })
+      );
+
+      io.to(`booking:${bookingId}`).emit("locationUpdate", { lat, lng });
+      console.log(`Emitting location update for booking:${bookingId}`, {
+        lat,
+        lng,
+      });
+    } catch (error) {
+      console.error("Error storing location in Redis:", error);
+    }
+  });
+
+  socket.on("bookingStatusUpdate", (data) => {
+    const { bookingId, status } = data;
+    console.log(`Booking ${bookingId} status updated to: ${status}`);
+
+    io.emit(`booking:${bookingId}:status`, { status });
+    io.to(`booking:${bookingId}`).emit("bookingStatusUpdate", {
+      bookingId,
+      status,
+    });
   });
 
   socket.on("disconnect", () => {
@@ -77,11 +89,11 @@ io.on("connection", (socket) => {
   });
 });
 
-// Cron job to activate scheduled bookings
 cron.schedule("* * * * *", async () => {
   try {
     const now = new Date();
     const Booking = require("./models/bookingModel");
+
     const bookings = await Booking.find({
       status: "scheduled",
       scheduledAt: { $lte: now },
@@ -105,7 +117,6 @@ const notifyNearbyDrivers = async (booking) => {
 
     if (bestDriver) {
       console.log(`Notifying driver ${bestDriver._id} of new booking.`);
-      io.emit(`booking:request:${bestDriver._id}`, { bookingId: booking._id });
     } else {
       console.log("No available driver found.");
     }
@@ -123,3 +134,7 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+console.log("Redis Client: ", redisClient);
+
+module.exports = { app, redisClient };

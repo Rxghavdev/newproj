@@ -49,11 +49,11 @@ const userSchema = mongoose.Schema(
       default: 'valid',
     },
     rating: {
-      type: Number, // Average rating of the driver (0 - 5 scale)
+      type: Number, 
       default: 5.0,
     },
     tripCount: {
-      type: Number, // Total number of completed trips
+      type: Number, 
       default: 0,
     },
   },

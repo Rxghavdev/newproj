@@ -5,6 +5,8 @@ const redisClient = Redis.createClient({
   host: process.env.REDIS_HOST || 'localhost',
   port: process.env.REDIS_PORT || 6379,
 });
+
+//matching logic
 const calculateProximity = (pickupLat, pickupLng, driverLat, driverLng) => {
   return Math.sqrt(
     Math.pow(driverLat - pickupLat, 2) + Math.pow(driverLng - pickupLng, 2)
