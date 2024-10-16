@@ -38,7 +38,7 @@ import { useAuth } from "../context/AuthContext";
 
 const libraries = ["geometry"];
 
-const socket = io("http://localhost:5000");
+const socket = io("https://logistic-73tw.onrender.com/");
 
 const statuses = [
   "pending",

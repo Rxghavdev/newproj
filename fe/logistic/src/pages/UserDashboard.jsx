@@ -20,7 +20,7 @@ import {
 import { io } from "socket.io-client";
 import { Dialog } from "@headlessui/react";
 //socket
-const socket = io("http://localhost:5000", {
+const socket = io("https://logistic-73tw.onrender.com/", {
   withCredentials: true,
 });
 
