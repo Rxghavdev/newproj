@@ -83,27 +83,44 @@ export default function UserDashboard() {
     libraries: ["geometry", "places"],
   });
   //useEffect statements
+  // useEffect(() => {
+  const fetchBookings = async () => {
+    try {
+      const response = await api.getUserBookings();
+      const bookings = response.data.bookings;
+
+      bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const completed = bookings.filter((b) => b.status === "completed");
+      const active = bookings.filter((b) => b.status !== "completed");
+
+      setRecentBooking(active[0] || null);
+      setActiveBookings(active.slice(1));
+      setPastBookings(completed);
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  //   fetchBookings();
+  // }, []);
+
   useEffect(() => {
-    const fetchBookings = async () => {
-      try {
-        const response = await api.getUserBookings();
-        const bookings = response.data.bookings;
-
-        bookings.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        const completed = bookings.filter((b) => b.status === "completed");
-        const active = bookings.filter((b) => b.status !== "completed");
-
-        setRecentBooking(active[0] || null);
-        setActiveBookings(active.slice(1));
-        setPastBookings(completed);
-      } catch (error) {
-        console.error("Error fetching bookings:", error);
-      } finally {
-        setLoading(false);
-      }
+    const fetchOnPageLoad = () => {
+      fetchBookings();
     };
 
-    fetchBookings();
+    // Fetch data on initial load
+    fetchOnPageLoad();
+
+    // Add event listener to detect page load or reload
+    window.addEventListener("load", fetchOnPageLoad);
+
+    return () => {
+      // Cleanup event listener to prevent memory leaks
+      window.removeEventListener("load", fetchOnPageLoad);
+    };
   }, []);
 
   useEffect(() => {

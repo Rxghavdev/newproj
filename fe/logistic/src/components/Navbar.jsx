@@ -1,12 +1,10 @@
-// src/components/Navbar.jsx
-
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // Corrected import
+import React from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Navbar() {
-  const { user, logout } = useAuth(); // Destructure user and logout from context
-  console.log("Navbar User:", user); // Debugging line
+  const { user, logout } = useAuth();
+  console.log("Navbar User:", user);
 
   return (
     <nav className="bg-blue-600 p-4 shadow-md">
@@ -16,7 +14,7 @@ export default function Navbar() {
           <Link to="/" className="text-white hover:underline">
             Home
           </Link>
-          
+
           {user ? (
             // If user is logged in, show Logout button
             <button
@@ -26,7 +24,6 @@ export default function Navbar() {
               Logout
             </button>
           ) : (
-            // If user is not logged in, show Login and Register links
             <>
               <Link to="/login" className="text-white hover:underline">
                 Login

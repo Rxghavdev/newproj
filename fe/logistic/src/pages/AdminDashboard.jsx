@@ -9,8 +9,11 @@ import {
 } from "react-icons/ai";
 import { FiRefreshCw } from "react-icons/fi";
 import Modal from "./Modal";
+import { useAuth } from "../context/AuthContext";
 
 export default function AdminDashboard() {
+  const { user, token } = useAuth();
+
   const [bookings, setBookings] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -25,36 +28,156 @@ export default function AdminDashboard() {
   const [totalBookings, setTotalBookings] = useState(0);
   const [completedBookings, setCompletedBookings] = useState(0);
 
+  // const fetchData = async () => {
+  //   try {
+  //     const [bookingsRes, driversRes, vehiclesRes, analyticsRes] =
+  //       await Promise.all([
+  //         api.getAllBookings(),
+  //         api.getAllDrivers(),
+  //         api.getAllVehicles(),
+  //         api.getAnalytics(),
+  //       ]);
+
+  //     setBookings(bookingsRes.data);
+  //     setDrivers(driversRes.data);
+  //     setVehicles(vehiclesRes.data);
+  //     setAnalytics(analyticsRes.data);
+
+  //     // Compute totalBookings and completedBookings
+  //     setTotalBookings(bookingsRes.data.length);
+  //     setCompletedBookings(
+  //       bookingsRes.data.filter((b) => b.status === "completed").length
+  //     );
+  //   } catch (error) {
+  //     console.error("Error fetching admin data:", error);
+  //     setError("Failed to fetch data. Please try again.");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // useEffect(() => {
+  //   const fetchOnPageLoad = () => {
+  //     fetchData();
+  //   };
+
+  //   // Fetch data on initial load
+  //   fetchOnPageLoad();
+
+  //   // Add event listener to detect page load or reload
+  //   window.addEventListener("load", fetchOnPageLoad);
+
+  //   return () => {
+  //     // Cleanup event listener to prevent memory leaks
+  //     window.removeEventListener("load", fetchOnPageLoad);
+  //   };
+  // }, []);
+
+  // const fetchData = async () => {
+  //   try {
+  //     // const [bookingsRes, driversRes, vehiclesRes, analyticsRes] =
+  //     //   await Promise.all([
+  //     //     api.getAllBookings(),
+  //     //     api.getAllDrivers(),
+  //     //     api.getAllVehicles(),
+  //     //     api.getAnalytics(),
+  //     //   ]);
+
+  //     const bookingsRes = await api.getAllBookings();
+  //     const driversRes = await api.getAllDrivers();
+  //     const vehiclesRes = await api.getAllVehicles();
+  //     const analyticsRes = await api.getAnalytics();
+
+  //     setBookings(bookingsRes.data);
+  //     setDrivers(driversRes.data);
+  //     setVehicles(vehiclesRes.data);
+  //     setAnalytics(analyticsRes.data);
+
+  //     // Compute totalBookings and completedBookings
+  //     setTotalBookings(bookingsRes.data.length);
+  //     setCompletedBookings(
+  //       bookingsRes.data.filter((b) => b.status === "completed").length
+  //     );
+  //   } catch (error) {
+  //     console.error("Error fetching admin data:", error);
+  //     setError("Failed to fetch data. Please try again.");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  // useEffect(() => {
+  //   const fetchOnPageLoad = () => {
+  //     fetchData();
+  //   };
+
+  //   // Fetch data on initial load
+  //   fetchOnPageLoad();
+
+  //   // Add event listener to detect page load or reload
+  //   window.addEventListener("load", fetchOnPageLoad);
+
+  //   return () => {
+  //     // Cleanup event listener to prevent memory leaks
+  //     window.removeEventListener("load", fetchOnPageLoad);
+  //   };
+  // }, [user]);
+
+  const fetchData = async () => {
+    try {
+      // const [bookingsRes, driversRes, vehiclesRes, analyticsRes] =
+      //   await Promise.all([
+      //     api.getAllBookings(),
+      //     api.getAllDrivers(),
+      //     api.getAllVehicles(),
+      //     api.getAnalytics(),
+      //   ]);
+
+      const bookingsRes = await api.getAllBookings();
+      const driversRes = await api.getAllDrivers();
+      const vehiclesRes = await api.getAllVehicles();
+      const analyticsRes = await api.getAnalytics();
+
+      setBookings(bookingsRes.data);
+      setDrivers(driversRes.data);
+      setVehicles(vehiclesRes.data);
+      setAnalytics(analyticsRes.data);
+
+      // Compute total and completed bookings
+      setTotalBookings(bookingsRes.data.length);
+      setCompletedBookings(
+        bookingsRes.data.filter((b) => b.status === "completed").length
+      );
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      setError("Failed to fetch data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // useEffect(() => {
+  //   const validateAndFetch = async () => {
+  //     fetchData();
+  //   };
+
+  //   validateAndFetch(); // Execute token validation and data fetch
+  // }, []);
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [bookingsRes, driversRes, vehiclesRes, analyticsRes] =
-          await Promise.all([
-            api.getAllBookings(),
-            api.getAllDrivers(),
-            api.getAllVehicles(),
-            api.getAnalytics(),
-          ]);
-
-        setBookings(bookingsRes.data);
-        setDrivers(driversRes.data);
-        setVehicles(vehiclesRes.data);
-        setAnalytics(analyticsRes.data);
-
-        // Compute totalBookings and completedBookings
-        setTotalBookings(bookingsRes.data.length);
-        setCompletedBookings(
-          bookingsRes.data.filter((b) => b.status === "completed").length
-        );
-      } catch (error) {
-        console.error("Error fetching admin data:", error);
-        setError("Failed to fetch data. Please try again.");
-      } finally {
-        setLoading(false);
-      }
+    const fetchOnPageLoad = () => {
+      fetchData();
     };
 
-    fetchData();
+    // Fetch data on initial load
+    fetchOnPageLoad();
+
+    window.addEventListener("load", fetchOnPageLoad);
+
+    return () => {
+      // Cleanup event listener to prevent memory leaks
+      window.removeEventListener("load", fetchOnPageLoad);
+    };
   }, []);
 
   if (loading) {
@@ -283,7 +406,7 @@ const VehicleCard = ({ vehicle, onViewDetails }) => (
     <p>
       <strong>License Plate:</strong> {vehicle.license_plate || "N/A"}
     </p>
-    
+    {/* Removed Driver field as per previous instructions */}
     <button
       className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
       onClick={() => onViewDetails(vehicle._id)}

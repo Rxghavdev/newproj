@@ -18,17 +18,17 @@ export const setAuthToken = (token) => {
   }
 };
 
-axiosInstance.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    if (error.response && error.response.status === 401) {
-      console.error("Session expired. Please log in again.");
-      localStorage.removeItem("token");
-      window.location.href = "/login";
-    }
-    return Promise.reject(error);
-  }
-);
+// axiosInstance.interceptors.response.use(
+//   (response) => response,
+//   async (error) => {
+//     if (error.response && error.response.status === 401) {
+//       console.error("Session expired. Please log in again.");
+//       localStorage.removeItem("token");
+//       window.location.href = "/login";
+//     }
+//     return Promise.reject(error);
+//   }
+// );
 
 export const login = (credentials) =>
   axiosInstance.post("/users/login", credentials);
