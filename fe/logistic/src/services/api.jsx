@@ -8,7 +8,6 @@ const axiosInstance = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true,
 });
 
 export const setAuthToken = (token) => {
@@ -25,7 +24,7 @@ axiosInstance.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       console.error("Session expired. Please log in again.");
       localStorage.removeItem("token");
-      window.location.href = "/login"; // Redirect to login page
+      window.location.href = "/login";
     }
     return Promise.reject(error);
   }
@@ -52,7 +51,6 @@ export const acceptBooking = (data) =>
 export const updateJobStatus = (data) =>
   axiosInstance.put("/bookings/status", data);
 
-// Admin Routes
 export const getAllBookings = () => axiosInstance.get("/admin/bookings");
 
 export const getAnalytics = () => axiosInstance.get("/admin/analytics");
@@ -62,15 +60,14 @@ export const getAllDrivers = () => axiosInstance.get("/admin/drivers");
 export const getDriverPerformance = (id) =>
   axiosInstance.get(`/admin/drivers/${id}`);
 
+export const getAllVehicles = () => axiosInstance.get("/admin/vehicles");
+
+export const getVehicle = (id) => axiosInstance.get(`/admin/vehicles/${id}`);
+
 //driver routes
 
 export const getPendingBookings = () => axiosInstance.get("/bookings/pending");
 
 export const rateDriver = (data) => axiosInstance.post("/bookings/rate", data);
-export const updateDriverLocation = (data) =>
-  axiosInstance.post("/bookings/update-driver-location", data);
-
-export const getDriverLocation = (driverId) =>
-  axiosInstance.get(`/bookings/driver-location/${driverId}`);
 
 export default axiosInstance;

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from "react";
 import { FaCar, FaMotorcycle, FaTruck } from "react-icons/fa";
 import { io } from "socket.io-client";
@@ -38,6 +37,7 @@ import {
 const libraries = ["geometry"];
 
 const socket = io("http://localhost:5000");
+
 const statuses = [
   "pending",
   "accepted",
@@ -46,29 +46,27 @@ const statuses = [
   "cancelled",
 ];
 
-const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY; 
+const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 export default function DriverDashboard() {
   const [pendingBookings, setPendingBookings] = useState([]);
   const [acceptedBooking, setAcceptedBooking] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [driverName] = useState(
-    localStorage.getItem("driverName") || "Driver"
-  );
+  const [driverName] = useState(localStorage.getItem("driverName") || "Driver");
   const [bookingId, setBookingId] = useState("");
   const [anchorEl, setAnchorEl] = useState(null);
   const [driverLocation, setDriverLocation] = useState(null);
   const [directions, setDirections] = useState(null);
   const [destinationReached, setDestinationReached] = useState(false);
-  const [eta, setEta] = useState(null); 
+  const [eta, setEta] = useState(null);
 
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
-    libraries, 
+    libraries,
   });
 
   const mapRef = useRef(null);
-  const movementInterval = useRef(null); 
+  const movementInterval = useRef(null);
   const fetchPendingBookings = async () => {
     setLoading(true);
     try {
@@ -116,8 +114,21 @@ export default function DriverDashboard() {
 
     return null;
   };
+  useEffect(() => {
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+    });
 
-  // Emiting location update whenever driverLocation changes
+    socket.on("disconnect", () => {
+      console.log("Socket disconnected");
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+    };
+  }, []);
+
   useEffect(() => {
     if (driverLocation && bookingId && !destinationReached) {
       socket.emit("locationUpdate", {
@@ -172,7 +183,8 @@ export default function DriverDashboard() {
         status: newStatus,
       });
 
-      if (newStatus === "completed") {        await api.updateJobStatus({
+      if (newStatus === "completed") {
+        await api.updateJobStatus({
           bookingId: acceptedBooking._id,
           status: newStatus,
         });
@@ -229,11 +241,11 @@ export default function DriverDashboard() {
   const simulateMovement = (path) => {
     if (!path || path.length === 0) return;
 
-    setDestinationReached(false); 
+    setDestinationReached(false);
 
     let index = 0;
-    const speedKmh = 60; // Adjusting speed to 60 km/h
-    const speedMs = (speedKmh * 1000) / 3600; 
+    const speedKmh = 60;
+    const speedMs = (speedKmh * 1000) / 3600;
 
     if (movementInterval.current) {
       clearInterval(movementInterval.current);
@@ -251,8 +263,8 @@ export default function DriverDashboard() {
           window.google.maps.geometry.spherical.computeDistanceBetween(
             currentPoint,
             nextPoint
-          ); 
-        const duration = distance / speedMs; 
+          );
+        const duration = distance / speedMs;
 
         setDriverLocation({
           lat: nextPoint.lat(),
@@ -268,7 +280,7 @@ export default function DriverDashboard() {
         clearInterval(movementInterval.current);
         setDestinationReached(true);
       }
-    }, 1000); // Updating every 1 second
+    }, 1000);
   };
 
   const updateEta = () => {
@@ -277,10 +289,13 @@ export default function DriverDashboard() {
     let destination = null;
     if (acceptedBooking.status === "accepted" && !destinationReached) {
       destination = toLatLngLiteral(acceptedBooking.pickupCoordinates);
-    } else if (acceptedBooking.status === "in_progress" && !destinationReached) {
+    } else if (
+      acceptedBooking.status === "in_progress" &&
+      !destinationReached
+    ) {
       destination = toLatLngLiteral(acceptedBooking.dropoffCoordinates);
     } else {
-      setEta(null); 
+      setEta(null);
       return;
     }
 
@@ -290,7 +305,7 @@ export default function DriverDashboard() {
       window.google.maps.geometry.spherical.computeDistanceBetween(
         new window.google.maps.LatLng(driverLocation.lat, driverLocation.lng),
         new window.google.maps.LatLng(destination.lat, destination.lng)
-      ); 
+      );
 
     const speedMs = (60 * 1000) / 3600; // Speed in m/s (60 km/h)
     const remainingTimeSeconds = remainingDistance / speedMs;
@@ -355,17 +370,16 @@ export default function DriverDashboard() {
 
   const carIcon = {
     url: "https://maps.google.com/mapfiles/kml/shapes/cabs.png",
-    scaledSize: new window.google.maps.Size(40, 40), 
-    anchor: new window.google.maps.Point(20, 20), 
+    scaledSize: new window.google.maps.Size(40, 40),
+    anchor: new window.google.maps.Point(20, 20),
   };
 
-  
   const mapContainerStyle = {
     width: "100%",
     height: "100%",
-    borderRadius: "15px", 
-    overflow: "hidden", 
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)", 
+    borderRadius: "15px",
+    overflow: "hidden",
+    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
   };
 
   return (
@@ -408,9 +422,7 @@ export default function DriverDashboard() {
                         Price: ₹{acceptedBooking.price.toFixed(2)}
                       </Typography>
                       {eta && (
-                        <Typography variant="subtitle1">
-                          ETA: {eta}
-                        </Typography>
+                        <Typography variant="subtitle1">ETA: {eta}</Typography>
                       )}
                     </Grid>
                     <Grid item xs={12} sm={4}>

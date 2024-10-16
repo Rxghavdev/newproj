@@ -13,7 +13,6 @@ const getDistance = async (pickupLocation, dropoffLocation) => {
     dropoffLocation
   )}&key=${GOOGLE_MAPS_API_KEY}`;
 
-
   //fetching distance from Google Maps API
   try {
     const response = await axios.get(url);
@@ -27,7 +26,7 @@ const getDistance = async (pickupLocation, dropoffLocation) => {
       response.data.rows[0].elements[0].status === "OK"
     ) {
       const distanceInMeters = response.data.rows[0].elements[0].distance.value;
-      const distanceInKm = distanceInMeters / 1000; 
+      const distanceInKm = distanceInMeters / 1000;
       return distanceInKm;
     } else {
       console.error("Invalid response from Google Maps API", response.data);

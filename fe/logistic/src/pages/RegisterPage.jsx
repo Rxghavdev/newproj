@@ -6,10 +6,12 @@ export default function RegisterPage() {
     name: "",
     email: "",
     password: "",
-    role: "user",
-    vehicle: "",
-    vehicleNumber: "",
+    role: "user", // Default to user role
+    vehicleType: "",
+    license_plate: "",
+    model: "",
   });
+
   const { register } = useAuth();
 
   const handleChange = (e) => {
@@ -55,6 +57,7 @@ export default function RegisterPage() {
           />
           <select
             name="role"
+            value={formData.role}
             onChange={handleChange}
             className="w-full px-4 py-3 border rounded-md dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
           >
@@ -62,24 +65,36 @@ export default function RegisterPage() {
             <option value="driver">Driver</option>
             <option value="admin">Admin</option>
           </select>
+
           {formData.role === "driver" && (
             <>
               <input
                 type="text"
-                name="vehicle"
-                placeholder="Vehicle"
+                name="vehicleType"
+                placeholder="Vehicle Type (e.g., Car, Truck, Bike)"
                 onChange={handleChange}
                 className="w-full px-4 py-3 border rounded-md dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
               />
               <input
                 type="text"
-                name="vehicleNumber"
-                placeholder="Vehicle Number"
+                name="license_plate"
+                placeholder="License Plate Number"
                 onChange={handleChange}
                 className="w-full px-4 py-3 border rounded-md dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
+              />
+              <input
+                type="text"
+                name="model"
+                placeholder="Vehicle Model (e.g., Toyota Corolla)"
+                onChange={handleChange}
+                className="w-full px-4 py-3 border rounded-md dark:bg-gray-700 dark:text-white dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                required
               />
             </>
           )}
+
           <button
             type="submit"
             className="w-full py-3 text-white bg-blue-600 rounded-md hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-700"

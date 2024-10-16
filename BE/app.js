@@ -7,10 +7,10 @@ const cron = require("node-cron");
 const connectDB = require("./config/db");
 const redisClient = require("./helpers/redisClient");
 const { findBestDriver } = require("./helpers/matchingAlgorithm");
-
+//connect to database
 dotenv.config();
 connectDB();
-
+//create express app
 const app = express();
 const server = http.createServer(app);
 
@@ -23,7 +23,7 @@ app.use(
 );
 
 app.use(express.json());
-
+//routes
 const userRoutes = require("./routes/userRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
 const adminRoutes = require("./routes/adminRoutes");
@@ -35,7 +35,7 @@ app.use("/api/admin", adminRoutes);
 app.get("/", (req, res) => {
   res.send("Logistics Platform API");
 });
-
+//socket io implementation
 const io = socketIO(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -43,7 +43,7 @@ const io = socketIO(server, {
     credentials: true,
   },
 });
-
+//socket io connection established
 io.on("connection", (socket) => {
   console.log(`New client connected: ${socket.id}`);
 
@@ -72,7 +72,7 @@ io.on("connection", (socket) => {
       console.error("Error storing location in Redis:", error);
     }
   });
-
+  //booking status update
   socket.on("bookingStatusUpdate", (data) => {
     const { bookingId, status } = data;
     console.log(`Booking ${bookingId} status updated to: ${status}`);
@@ -109,7 +109,7 @@ cron.schedule("* * * * *", async () => {
     console.error("Error activating scheduled bookings:", error);
   }
 });
-
+//notify nearby drivers
 const notifyNearbyDrivers = async (booking) => {
   try {
     const { vehicleType, pickupLat, pickupLng } = booking;

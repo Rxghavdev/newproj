@@ -1,5 +1,31 @@
 const User = require("../models/userModel");
 const Booking = require("../models/bookingModel");
+const Vehicle = require("../models/vehicleModel");
+
+const getAllVehicles = async (req, res) => {
+  try {
+    const vehicles = await Vehicle.find();
+    res.status(200).json(vehicles);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching vehicles", error: error.message });
+  }
+};
+
+const getVehicle = async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id);
+    if (!vehicle) {
+      return res.status(404).json({ message: "Vehicle not found" });
+    }
+    res.status(200).json(vehicle);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching vehicle", error: error.message });
+  }
+};
 
 const getAllDrivers = async (req, res) => {
   try {
@@ -11,29 +37,31 @@ const getAllDrivers = async (req, res) => {
       .json({ message: "Error fetching drivers", error: error.message });
   }
 };
-
 const getDriverPerformance = async (req, res) => {
   try {
-    const driver = await User.findById(req.params.id);
+    const driverId = req.params.id;
 
-    if (!driver || driver.role !== "driver") {
+    const driver = await User.findById(driverId);
+
+    if (!driver) {
       return res.status(404).json({ message: "Driver not found" });
     }
-
-    const completedTrips = await Booking.countDocuments({
-      driver: driver._id,
+    const totalRides = await Booking.countDocuments({ driver: driverId });
+    const completedRides = await Booking.countDocuments({
+      driver: driverId,
       status: "completed",
     });
 
-    res.status(200).json({
-      driver,
-      completedTrips,
-      rating: driver.rating,
+    res.json({
+      totalRides,
+      completedRides,
+      rating: driver.rating || 0,
+      tripCount: driver.tripCount || 0,
+      licenseStatus: driver.licenseStatus || "Unknown",
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching driver data", error: error.message });
+    console.error("Error fetching driver performance:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -74,6 +102,8 @@ const getAllBookings = async (req, res) => {
 };
 
 module.exports = {
+  getAllVehicles,
+  getVehicle,
   getAllDrivers,
   getDriverPerformance,
   getAnalytics,

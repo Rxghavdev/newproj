@@ -1,3 +1,4 @@
+//import statements
 import React, {
   useState,
   useEffect,
@@ -9,6 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import GooglePlacesAutocomplete from "react-google-places-autocomplete";
 import { FaStar, FaRegStar } from "react-icons/fa";
+import headless from "@headlessui/react";
 import {
   GoogleMap,
   Marker,
@@ -16,8 +18,11 @@ import {
   useJsApiLoader,
 } from "@react-google-maps/api";
 import { io } from "socket.io-client";
-
-const socket = io("http://localhost:5000"); // Connecting to Socket.IO backend
+import { Dialog } from "@headlessui/react";
+//socket
+const socket = io("http://localhost:5000", {
+  withCredentials: true,
+});
 
 const mapContainerStyle = {
   width: "100%",
@@ -51,14 +56,33 @@ export default function UserDashboard() {
   const [bookingId, setBookingId] = useState("");
   const [alerted, setAlerted] = useState(false);
   const [directions, setDirections] = useState(null);
+  const [showRatingPopup, setShowRatingPopup] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [currentRatingBookingId, setCurrentRatingBookingId] = useState(null);
 
   const mapRef = useRef(null);
-
+  const Modal = ({ isOpen, onClose, children }) => {
+    if (!isOpen) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full">
+          {children}
+          <button
+            onClick={onClose}
+            className="mt-4 w-full py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  };
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
     libraries: ["geometry", "places"],
   });
-
+  //useEffect statements
   useEffect(() => {
     const fetchBookings = async () => {
       try {
@@ -88,11 +112,11 @@ export default function UserDashboard() {
     const bookingId = recentBooking._id;
     setBookingId(bookingId);
     socket.emit("joinBookingRoom", bookingId);
-
-    // Listen for location updates
+    //socket connection
     socket.on("locationUpdate", async (data) => {
       const driverLoc = { lat: data.lat, lng: data.lng };
       setDriverLocation(driverLoc);
+
       let destination = null;
       if (recentBooking.status === "accepted") {
         destination = recentBooking.pickupCoordinates?.coordinates;
@@ -101,46 +125,58 @@ export default function UserDashboard() {
       }
 
       if (destination) {
-        await calculateRoute(driverLoc, destination);
+        calculateRoute(driverLoc, destination);
       }
 
       if (
         window.google &&
         window.google.maps &&
         window.google.maps.geometry &&
-        recentBooking.pickupCoordinates
+        destination
       ) {
-        const pickupLocation = recentBooking.pickupCoordinates.coordinates;
         const driverLatLng = new window.google.maps.LatLng(data.lat, data.lng);
-        const pickupLatLng = new window.google.maps.LatLng(
-          pickupLocation.lat,
-          pickupLocation.lng
+        const destinationLatLng = new window.google.maps.LatLng(
+          destination.lat,
+          destination.lng
         );
 
         const distance =
           window.google.maps.geometry.spherical.computeDistanceBetween(
             driverLatLng,
-            pickupLatLng
+            destinationLatLng
           );
 
-        // Alerting if within 1 km and not alerted yet
-        if (distance <= 1000 && !alerted) {
+        if (
+          distance <= 1000 &&
+          !alerted &&
+          recentBooking.status === "accepted"
+        ) {
           alert("Your driver is within 1 km of your pickup location!");
           setAlerted(true);
         }
 
-        const speedMs = (speed * 1000) / 3600; // Convert speed to m/s
+        const speedMs = (speed * 1000) / 3600;
         const estimatedTimeSeconds = distance / speedMs;
         const estimatedTimeMinutes = Math.round(estimatedTimeSeconds / 60);
         setEta(estimatedTimeMinutes);
       }
     });
-
-    // Listening for booking status updates
+    //listening to booking status
     socket.on(`booking:${bookingId}:status`, (data) => {
       setRecentBooking((prev) => ({ ...prev, status: data.status }));
 
-      if (data.status === "completed" || data.status === "cancelled") {
+      if (data.status === "completed") {
+        if (data.status === "completed") {
+          setIsRatingModalOpen(true);
+          setCurrentRatingBookingId(bookingId);
+        }
+
+        setAlerted(false);
+        setEta(null);
+        setDirections(null);
+        setDriverLocation(null);
+        setShowRatingPopup(true);
+      } else if (data.status === "cancelled") {
         setAlerted(false);
         setEta(null);
         setDirections(null);
@@ -149,12 +185,13 @@ export default function UserDashboard() {
     });
 
     return () => {
+      // Clean up socket listeners
       socket.off("locationUpdate");
       socket.off(`booking:${bookingId}:status`);
     };
   }, [recentBooking, isLoaded, alerted]);
 
-  const calculateRoute = async (origin, destination) => {
+  const calculateRoute = useCallback(async (origin, destination) => {
     if (!origin || !destination) return;
 
     const directionsService = new window.google.maps.DirectionsService();
@@ -164,18 +201,22 @@ export default function UserDashboard() {
         destination,
         travelMode: window.google.maps.TravelMode.DRIVING,
       });
-      setDirections(result);
+
+      setDirections((prevDirections) => {
+        if (
+          prevDirections &&
+          result.routes[0].overview_polyline ===
+            prevDirections.routes[0].overview_polyline
+        ) {
+          return prevDirections;
+        }
+        return result;
+      });
     } catch (error) {
       console.error("Error calculating route:", error);
     }
-  };
-
-  useEffect(() => {
-    if (driverLocation && mapRef.current) {
-      mapRef.current.panTo(driverLocation);
-    }
-  }, [driverLocation]);
-
+  }, []);
+  //rating driver
   const handleNewBookingChange = (field, value) => {
     setNewBooking((prev) => ({ ...prev, [field]: value }));
   };
@@ -189,12 +230,14 @@ export default function UserDashboard() {
           booking._id === bookingId ? { ...booking, rating } : booking
         )
       );
+      setIsRatingModalOpen(false);
+      setCurrentRatingBookingId(null);
     } catch (error) {
       console.error("Error rating driver:", error);
       alert("Failed to rate driver.");
     }
   };
-
+  //toggle statements
   const toggleScheduleBooking = () => setScheduleBooking(!scheduleBooking);
 
   const handleCreateBooking = async (e) => {
@@ -218,7 +261,7 @@ export default function UserDashboard() {
       alert("Failed to create booking.");
     }
   };
-
+  //schedule booking
   const handleScheduleBooking = async (e) => {
     e.preventDefault();
     try {
@@ -240,13 +283,15 @@ export default function UserDashboard() {
 
   const toggleBookingsView = () => setShowAllBookings(!showAllBookings);
 
-  const mapCenter = useMemo(() => {
-    return (
-      driverLocation ||
-      recentBooking?.pickupCoordinates?.coordinates ||
-      defaultCenter
-    );
-  }, [driverLocation, recentBooking]);
+  const [initialMapCenter, setInitialMapCenter] = useState(defaultCenter);
+
+  useEffect(() => {
+    if (isLoaded && recentBooking) {
+      setInitialMapCenter(
+        recentBooking.pickupCoordinates?.coordinates || defaultCenter
+      );
+    }
+  }, [isLoaded, recentBooking]);
 
   const mapOptions = useMemo(
     () => ({
@@ -269,31 +314,31 @@ export default function UserDashboard() {
   }
 
   const carIcon = {
-    url: "https://maps.google.com/mapfiles/kml/shapes/cabs.png", // Car icon URL
+    url: "https://maps.google.com/mapfiles/kml/shapes/cabs.png", //url for car
     scaledSize: new window.google.maps.Size(40, 40),
     anchor: new window.google.maps.Point(20, 20),
   };
 
-  const renderStars = (booking) => {
+  const renderStars = (currentRating, onRate) => {
     const totalStars = 5;
     const stars = [];
 
     for (let i = 1; i <= totalStars; i++) {
-      if (booking.rating && i <= booking.rating) {
+      if (i <= currentRating) {
         stars.push(
-          <FaStar key={i} className="text-yellow-400" onClick={() => {}} />
-        );
-      } else if (!booking.rating) {
-        stars.push(
-          <FaRegStar
+          <FaStar
             key={i}
-            className="text-gray-400 cursor-pointer"
-            onClick={() => handleRateDriver(booking._id, i)}
+            className="text-yellow-400 cursor-pointer"
+            onClick={() => onRate(i)}
           />
         );
       } else {
         stars.push(
-          <FaRegStar key={i} className="text-gray-400" onClick={() => {}} />
+          <FaRegStar
+            key={i}
+            className="text-gray-400 cursor-pointer"
+            onClick={() => onRate(i)}
+          />
         );
       }
     }
@@ -474,40 +519,62 @@ export default function UserDashboard() {
               <p>Vehicle: {recentBooking.vehicleType}</p>
               <p>Status: {recentBooking.status}</p>
               <p className="font-bold text-green-400">
-                Price: ₹{recentBooking.price}
+                Price: ₹{parseFloat(recentBooking.price).toFixed(2)}
               </p>
-              {eta !== null && <p>Estimated Time of Arrival: {eta} minutes</p>}
+              {eta !== null && (
+                <p>
+                  {recentBooking.status === "accepted"
+                    ? `Estimated Time of Arrival: ${eta} minutes`
+                    : recentBooking.status === "in_progress"
+                    ? `Estimated Time of Delivery: ${eta} minutes`
+                    : null}
+                </p>
+              )}
             </div>
             {isLoaded && (
               <div className="mt-4">
                 <GoogleMap
                   mapContainerStyle={mapContainerStyle}
-                  center={mapCenter}
+                  center={initialMapCenter}
                   zoom={14}
                   options={mapOptions}
                   onLoad={onLoad}
                 >
-                  {directions && <DirectionsRenderer directions={directions} />}
+                  {directions && (
+                    <DirectionsRenderer
+                      directions={directions}
+                      options={{
+                        suppressMarkers: true, // Don't show default markers
+                      }}
+                    />
+                  )}
                   {driverLocation && (
                     <Marker
                       position={driverLocation}
                       icon={carIcon}
-                      label={{
-                        text: "Driver",
-                        className: "map-marker-label",
-                      }}
+                      // Remove label to prevent overlap
                     />
                   )}
+                  {/* Pickup Location Marker */}
                   {recentBooking.pickupCoordinates && (
                     <Marker
                       position={recentBooking.pickupCoordinates.coordinates}
                       label="Pickup"
+                      visible={recentBooking.status !== "in_progress"}
+                      icon={{
+                        url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+                      }}
                     />
                   )}
+
+                  {/* Dropoff Location Marker */}
                   {recentBooking.dropoffCoordinates && (
                     <Marker
                       position={recentBooking.dropoffCoordinates.coordinates}
                       label="Dropoff"
+                      icon={{
+                        url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+                      }}
                     />
                   )}
                 </GoogleMap>
@@ -545,10 +612,34 @@ export default function UserDashboard() {
               {booking.pickupLocation} → {booking.dropoffLocation}
             </p>
             <p>Vehicle: {booking.vehicleType}</p>
-            <div className="flex mt-2">{renderStars(booking)}</div>
+            <div className="flex mt-2">
+              {renderStars(booking.rating || 0, () => {})}
+            </div>
           </div>
         ))}
       </div>
+
+      <Modal
+        isOpen={isRatingModalOpen}
+        onClose={() => setIsRatingModalOpen(false)}
+      >
+        <h3 className="text-lg font-semibold mb-4 text-center">
+          Rate Your Driver
+        </h3>
+        <div className="flex justify-center space-x-2">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <FaStar
+              key={star}
+              className="text-yellow-400 cursor-pointer"
+              onClick={() => handleRateDriver(currentRatingBookingId, star)}
+              size={30}
+            />
+          ))}
+        </div>
+        <p className="text-center text-gray-600 mt-2">
+          Click on a star to rate
+        </p>
+      </Modal>
     </div>
   );
 }

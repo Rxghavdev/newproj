@@ -22,22 +22,15 @@ const userSchema = mongoose.Schema(
       default: 'user',
     },
     vehicle: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
       validate: {
         validator: function () {
           return this.role === 'driver';
         },
         message: 'Vehicle is required for drivers',
       },
-    },
-    vehicleNumber: {
-      type: String,
-      validate: {
-        validator: function () {
-          return this.role === 'driver';
-        },
-        message: 'Vehicle number is required for drivers',
-      },
+    
     },
     availability: {
       type: Boolean,

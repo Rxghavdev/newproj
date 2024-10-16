@@ -1,15 +1,22 @@
-const mongoose = require("mongoose");
-
+const mongoose = require('mongoose');
 const bookingSchema = new mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
       required: true,
     },
     driver: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: 'User',
+    },
+    vehicle: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Vehicle',
+    },
+    trackingSession: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TrackingSession',
     },
     pickupLocation: {
       type: String,
@@ -33,7 +40,7 @@ const bookingSchema = new mongoose.Schema(
     },
     vehicleType: {
       type: String,
-      enum: ["car", "truck", "bike"],
+      enum: ['car', 'truck', 'bike'],
       required: true,
     },
     price: {
@@ -43,14 +50,14 @@ const bookingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: [
-        "pending",
-        "accepted",
-        "in_progress",
-        "completed",
-        "cancelled",
-        "scheduled",
+        'pending',
+        'accepted',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'scheduled',
       ],
-      default: "pending",
+      default: 'pending',
     },
     scheduledAt: {
       type: Date, // Optional scheduled time
@@ -64,6 +71,6 @@ const bookingSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Booking = mongoose.model("Booking", bookingSchema);
+const Booking = mongoose.model('Booking', bookingSchema);
 
 module.exports = Booking;

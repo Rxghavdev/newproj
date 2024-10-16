@@ -1,67 +1,11 @@
 const User = require("../models/userModel");
+const Vehicle = require("../models/vehicleModel");
 const Booking = require("../models/bookingModel");
 const calculatePrice = require("../helpers/priceCalculator");
-const { io } = require("../app"); // Import the Socket.IO instance from app.js
+const { io } = require("../app");
 const { getDistance } = require("../helpers/distanceCalculator");
 const { findBestDriver } = require("../helpers/matchingAlgorithm");
-
-// const createBooking = async (req, res) => {
-//   try {
-//     const {
-//       pickupLocation,
-//       dropoffLocation,
-//       vehicleType,
-//       distance,
-//       pickupLat,
-//       pickupLng
-//     } = req.body;
-
-//     // Calculate price based on distance, vehicle type, and current bookings
-//     const currentBookings = await Booking.countDocuments({ status: 'pending' });
-//     const price = calculatePrice(vehicleType, distance, currentBookings);
-
-//     // Create a new booking object
-//     const booking = new Booking({
-//       user: req.user._id,
-//       pickupLocation,
-//       dropoffLocation,
-//       vehicleType,
-//       price,
-//       status: 'pending', // Default status
-//     });
-
-//     // Save the booking to the database
-//     await booking.save();
-
-//     // Notify the nearest available driver using `findBestDriver`
-//     const nearbyDriver = await findBestDriver(vehicleType, pickupLat, pickupLng);
-
-//     if (nearbyDriver) {
-//       console.log(`Notifying driver ${nearbyDriver._id} of new booking`);
-//       // Emit a notification to the specific driver using Socket.IO
-//       io.emit(`booking:request:${nearbyDriver._id}`, {
-//         bookingId: booking._id,
-//         pickupLocation,
-//         dropoffLocation,
-//         price,
-//         vehicleType,
-//       });
-//     }
-
-//     // Respond with success message and booking details
-//     res.status(201).json({
-//       message: 'Booking created successfully',
-//       booking,
-//     });
-
-//   } catch (error) {
-//     console.error('Error creating booking:', error);
-//     res.status(500).json({
-//       message: 'Error creating booking',
-//       error: error.message || error,
-//     });
-//   }
-// };
+//createBooking
 const createBooking = async (req, res) => {
   try {
     const {
@@ -76,20 +20,33 @@ const createBooking = async (req, res) => {
     console.log(req.body);
 
     const distance = await getDistance(pickupLocation, dropoffLocation);
+
     const currentBookings = await Booking.countDocuments({ status: "pending" });
     const price = calculatePrice(vehicleType, distance, currentBookings);
+
     const status = scheduledAt ? "scheduled" : "pending";
+
     const booking = new Booking({
       user: req.user._id,
       pickupLocation,
       dropoffLocation,
-      pickupCoordinates,
-      dropoffCoordinates,
+      pickupCoordinates: {
+        coordinates: {
+          lat: pickupCoordinates.coordinates.lat,
+          lng: pickupCoordinates.coordinates.lng,
+        },
+      },
+      dropoffCoordinates: {
+        coordinates: {
+          lat: dropoffCoordinates.coordinates.lat,
+          lng: dropoffCoordinates.coordinates.lng,
+        },
+      },
       vehicleType,
       price,
       distance,
       status,
-      scheduledAt, // Optional scheduled time
+      scheduledAt,
     });
 
     await booking.save();
@@ -118,17 +75,19 @@ const createBooking = async (req, res) => {
     });
   }
 };
-
+//controller for getUserBookings
 const getUserBookings = async (req, res) => {
   try {
     const userId = req.user._id;
-    const bookings = await Booking.find({ user: userId }).sort({
-      createdAt: -1,
-    });
+    const bookings = await Booking.find({ user: userId })
+      .populate("driver", "name email")
+      .populate("vehicle", "license_plate model vehicleType")
+      .sort({ createdAt: -1 });
 
-    res
-      .status(200)
-      .json({ message: "User bookings retrieved successfully", bookings });
+    res.status(200).json({
+      message: "User bookings retrieved successfully",
+      bookings,
+    });
   } catch (error) {
     console.error("Error fetching user bookings:", error);
     res.status(500).json({
@@ -145,20 +104,30 @@ const acceptBooking = async (req, res) => {
       { _id: bookingId, status: "pending" },
       { driver: req.user._id, status: "accepted" },
       { new: true }
-    );
+    ).populate("vehicle");
 
     if (!booking) {
       return res
         .status(400)
         .json({ message: "Booking is no longer available" });
     }
+    const driver = await User.findById(req.user._id).populate("vehicle");
+    if (driver.vehicle) {
+      booking.vehicle = driver.vehicle._id;
+      await booking.save();
+    } else {
+      console.error("Driver has no vehicle assigned.");
+      return res
+        .status(400)
+        .json({ message: "Driver has no vehicle assigned." });
+    }
 
     await User.findByIdAndUpdate(req.user._id, { availability: false });
 
-    // Calculate ETA assuming a speed of 40 km/h
+    // Calculate distance to pickup location
     const distanceToPickup = await getDistance(
       `${driverLat},${driverLng}`,
-      booking.pickupLocation
+      `${booking.pickupCoordinates.coordinates.lat},${booking.pickupCoordinates.coordinates.lng}`
     );
     const etaInMinutes = Math.round((distanceToPickup / 40) * 60);
 
@@ -175,36 +144,20 @@ const acceptBooking = async (req, res) => {
     });
   }
 };
-
-const updateDriverLocation = async (req, res) => {
-  try {
-    const { driverId, lat, lng } = req.body;
-
-    if (!driverId || !lat || !lng) {
-      return res.status(400).json({ message: "Invalid request data." });
-    }
-
-    redisClient.setex(
-      `driver:${driverId}:location`,
-      3600, // Expiration time in seconds
-      JSON.stringify({ lat, lng })
-    );
-
-    res.status(200).json({ message: "Driver location updated successfully." });
-  } catch (error) {
-    console.error("Error updating driver location:", error);
-    res.status(500).json({
-      message: "Failed to update driver location.",
-      error: error.message,
-    });
-  }
-};
-
+//controller for getPriceEstimate
 const getPriceEstimate = async (req, res) => {
   try {
     const { distance, vehicleType } = req.query;
+
+    if (!distance || !vehicleType) {
+      return res.status(400).json({
+        message: "Distance and vehicleType are required for price estimation",
+      });
+    }
+
     const basePrice = 50;
-    const pricePerKm = vehicleType === "truck" ? 20 : 10;
+    const pricePerKm =
+      vehicleType === "truck" ? 20 : vehicleType === "bike" ? 5 : 10;
     const estimatedPrice = basePrice + pricePerKm * distance;
 
     res.status(200).json({ estimatedPrice });
@@ -216,10 +169,23 @@ const getPriceEstimate = async (req, res) => {
     });
   }
 };
-
+//controller for updateJobStatus
 const updateJobStatus = async (req, res) => {
   try {
     const { bookingId, status } = req.body;
+
+    const validStatuses = [
+      "pending",
+      "accepted",
+      "in_progress",
+      "completed",
+      "cancelled",
+      "scheduled",
+    ];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
     const booking = await Booking.findById(bookingId);
 
     if (!booking) {
@@ -233,10 +199,21 @@ const updateJobStatus = async (req, res) => {
     }
 
     booking.status = status;
+    if (status === "accepted" && !booking.vehicle) {
+      const driver = await User.findById(req.user._id).populate("vehicles");
+      if (driver.vehicles && driver.vehicles.length > 0) {
+        booking.vehicle = driver.vehicles[0]._id;
+      }
+    }
+
     await booking.save();
+
     if (status === "completed") {
       const driver = await User.findById(booking.driver);
       driver.tripCount += 1;
+      await driver.save();
+
+      driver.availability = true;
       await driver.save();
     }
 
@@ -280,6 +257,7 @@ const rateDriver = async (req, res) => {
     await booking.save();
 
     const driver = await User.findById(booking.driver);
+
     const driverCompletedBookings = await Booking.find({
       driver: booking.driver,
       status: "completed",
@@ -290,8 +268,11 @@ const rateDriver = async (req, res) => {
       (acc, curr) => acc + curr.rating,
       0
     );
+
     const avgRating =
-      (totalRatings + rating) / (driverCompletedBookings.length + 1);     //calculating rating
+      driverCompletedBookings.length > 0
+        ? totalRatings / driverCompletedBookings.length
+        : rating;
 
     driver.rating = avgRating;
     await driver.save();
@@ -299,43 +280,30 @@ const rateDriver = async (req, res) => {
     res.status(200).json({ message: "Driver rated successfully", rating });
   } catch (error) {
     console.error("Error rating driver:", error);
-    res
-      .status(500)
-      .json({ message: "Error rating driver", error: error.message || error });
+    res.status(500).json({
+      message: "Error rating driver",
+      error: error.message || error,
+    });
   }
 };
+//controller for getPendingBookings
 const getPendingBookings = async (req, res) => {
   try {
     const bookings = await Booking.find({ status: "pending" })
-      .populate("user", "name email") 
+      .populate("user", "name email")
+      .populate("vehicle", "license_plate model vehicleType")
       .sort({ createdAt: -1 });
 
-    res
-      .status(200)
-      .json({ message: "Pending bookings retrieved successfully", bookings });
+    res.status(200).json({
+      message: "Pending bookings retrieved successfully",
+      bookings,
+    });
   } catch (error) {
     console.error("Error fetching pending bookings:", error);
     res.status(500).json({
       message: "Error fetching pending bookings",
       error: error.message || error,
     });
-  }
-};
-const getDriverLocation = async (req, res) => {
-  try {
-    const { driverId } = req.params;
-
-    const driver = await User.findById(driverId);
-    if (!driver || !driver.location) {
-      return res.status(404).json({ message: "Location not found." });
-    }
-
-    res.status(200).json({ location: driver.location });
-  } catch (error) {
-    console.error("Error fetching driver location:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to fetch location.", error: error.message });
   }
 };
 
@@ -347,6 +315,4 @@ module.exports = {
   rateDriver,
   getUserBookings,
   getPendingBookings,
-  updateDriverLocation,
-  getDriverLocation,
 };

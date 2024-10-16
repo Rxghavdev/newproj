@@ -22,7 +22,7 @@ router.get("/price", protect, authorizeRoles("user"), getPriceEstimate);
 router.put("/status", protect, authorizeRoles("driver"), updateJobStatus);
 router.post("/rate", protect, authorizeRoles("user"), rateDriver);
 router.get("/my-bookings", protect, authorizeRoles("user"), getUserBookings);
-router.post("/update-driver-location", updateDriverLocation);
+
 
 console.log("redisClient:", redisClient);
 
