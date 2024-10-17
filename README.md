@@ -19,6 +19,8 @@
 
 ## Introduction
 Task is for 4tl4n, booking creation, and dynamic user interaction. The project consists of both a **frontend** built using React and a **backend** powered by Node.js and Express, connected to MongoDB for data management and Redis for caching driver locations.
+Backend URL: https://logistic-73tw.onrender.com
+Frontend URL: https://newproj-jjuo.onrender.com/
 
 ---
 
