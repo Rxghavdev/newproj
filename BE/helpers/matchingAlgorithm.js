@@ -2,6 +2,8 @@ const redis = require('redis');
 const User = require('../models/userModel');
 
 const redisClient = redis.createClient({
+  password: process.env.REDIS_PASSWORD || '5rE5IRFytuBTd4KSpo9fe90O1SfchrN6',
+
   socket: {
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379,
